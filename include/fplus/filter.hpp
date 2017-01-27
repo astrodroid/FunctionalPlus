@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include "fplus/maybe.hpp"
-#include "fplus/result.hpp"
-#include "fplus/container_common.hpp"
+#include <fplus/maybe.hpp>
+#include <fplus/result.hpp>
+#include <fplus/container_common.hpp>
 
 #include <algorithm>
 
@@ -16,6 +16,7 @@ namespace fplus
 {
 
 // API search type: keep_if : ((a -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // keep_if(is_even, [1, 2, 3, 2, 4, 5]) == [2, 2, 4]
 // Also known as filter.
 template <typename Pred, typename Container>
@@ -29,6 +30,7 @@ Container keep_if(Pred pred, const Container& xs)
 }
 
 // API search type: drop_if : ((a -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // drop_if(is_even, [1, 2, 3, 2, 4, 5]) == [1, 3, 5]
 // Also known as reject.
 template <typename Pred, typename Container>
@@ -39,6 +41,7 @@ Container drop_if(Pred pred, const Container& xs)
 }
 
 // API search type: without : (a, [a]) -> [a]
+// fwd bind count: 1
 // without(0, [1, 0, 0, 5, 3, 0, 1]) == [1, 5, 3, 1]
 template <typename Container,
     typename T = typename Container::value_type>
@@ -48,6 +51,7 @@ Container without(T elem, const Container& xs)
 }
 
 // API search type: without_any : (a, [a]) -> [a]
+// fwd bind count: 1
 // without([0, 1], [1, 0, 0, 5, 3, 0, 1]) == [5, 3]
 template <typename Container, typename ContainerElems>
 Container without_any(const ContainerElems& elems, const Container& xs)
@@ -60,6 +64,7 @@ Container without_any(const ContainerElems& elems, const Container& xs)
 }
 
 // API search type: keep_if_with_idx : (((Int, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // Predicate takes index and value.
 // All elements fulfilling the predicate are kept.
 template <typename Pred, typename Container>
@@ -78,6 +83,7 @@ Container keep_if_with_idx(Pred pred, const Container& xs)
 }
 
 // API search type: drop_if_with_idx : (((Int, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // Predicate takes index and value.
 // All elements fulfilling the predicate are skipped.
 template <typename Pred, typename Container>
@@ -94,11 +100,12 @@ Container drop_if_with_idx(Pred pred, const Container& xs)
 }
 
 // API search type: keep_by_idx : ((Int -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // Predicate takes an index and decides if an element is kept.
 template <typename UnaryPredicate, typename Container>
 Container keep_by_idx(UnaryPredicate pred, const Container& xs)
 {
-    check_unary_predicate_for_type<UnaryPredicate, std::size_t>();
+    internal::check_unary_predicate_for_type<UnaryPredicate, std::size_t>();
     Container ys;
     auto it = internal::get_back_inserter<Container>(ys);
     std::size_t idx = 0;
@@ -111,15 +118,17 @@ Container keep_by_idx(UnaryPredicate pred, const Container& xs)
 }
 
 // API search type: drop_by_idx : ((Int -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // Predicate takes an index and decides if an element is dropped.
 template <typename UnaryPredicate, typename Container>
 Container drop_by_idx(UnaryPredicate pred, const Container& xs)
 {
-    check_unary_predicate_for_type<UnaryPredicate, std::size_t>();
+    internal::check_unary_predicate_for_type<UnaryPredicate, std::size_t>();
     return keep_by_idx(logical_not(pred), xs);
 }
 
 // API search type: keep_idxs : ([Int], [a]) -> [a]
+// fwd bind count: 1
 // keep_idxs([2,5], [1,2,3,4,5,6,7]) == [3,6]
 template <typename ContainerIdxs, typename Container>
 Container keep_idxs(const ContainerIdxs& idxs_to_keep, const Container& xs)
@@ -144,6 +153,7 @@ Container keep_idxs(const ContainerIdxs& idxs_to_keep, const Container& xs)
 }
 
 // API search type: drop_idxs : ([Int], [a]) -> [a]
+// fwd bind count: 1
 // drop_idxs([2,5], [1,2,3,4,5,6,7]) == [1,2,4,5,7]
 template <typename ContainerIdxs, typename Container>
 Container drop_idxs(const ContainerIdxs& idxs_to_drop, const Container& xs)
@@ -171,12 +181,22 @@ Container drop_idxs(const ContainerIdxs& idxs_to_drop, const Container& xs)
     return ys;
 }
 
+// API search type: drop_idx : (Int, [a]) -> [a]
+// fwd bind count: 1
+// drop_idx(2, [1,2,3,4,5,6,7]) == [1,2,4,5,6,7]
+template <typename Container>
+Container drop_idx(std::size_t idx, const Container& xs)
+{
+    return drop_by_idx(is_equal_to(idx), xs);
+}
+
 // API search type: justs : [Maybe a] -> [a]
+// fwd bind count: 0
 // From a Container filled with Maybe<T> the nothings are dropped
 // and the values inside the justs are returned in a new container.
 template <typename ContainerIn,
     typename ContainerOut =
-        typename same_cont_new_t<ContainerIn,
+        typename internal::same_cont_new_t<ContainerIn,
             typename ContainerIn::value_type::type>::type>
 ContainerOut justs(const ContainerIn& xs)
 {
@@ -191,11 +211,12 @@ ContainerOut justs(const ContainerIn& xs)
 }
 
 // API search type: oks : [Result a b] -> [a]
+// fwd bind count: 0
 // From a Container filled with Result<Ok, Error> the errors are dropped
 // and the values inside the ok are returned in a new container.
 template <typename ContainerIn,
     typename ContainerOut =
-        typename same_cont_new_t<ContainerIn,
+        typename internal::same_cont_new_t<ContainerIn,
             typename ContainerIn::value_type::ok_t>::type>
 ContainerOut oks(const ContainerIn& xs)
 {
@@ -211,11 +232,12 @@ ContainerOut oks(const ContainerIn& xs)
 }
 
 // API search type: errors : [Result a b] -> [b]
+// fwd bind count: 0
 // From a Container filled with Result<Ok, Error> the oks are dropped
 // and the values inside the errors are returned in a new container.
 template <typename ContainerIn,
     typename ContainerOut =
-        typename same_cont_new_t<ContainerIn,
+        typename internal::same_cont_new_t<ContainerIn,
             typename ContainerIn::value_type::error_t>::type>
 ContainerOut errors(const ContainerIn& xs)
 {
@@ -231,6 +253,7 @@ ContainerOut errors(const ContainerIn& xs)
 }
 
 // API search type: trim_left_by : ((a -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // trim_left_by(is_even, [0,2,4,5,6,7,8,6,4]) == [5,6,7,8,6,4]
 template <typename Container, typename UnaryPredicate>
 Container trim_left_by(UnaryPredicate p, const Container& xs)
@@ -243,6 +266,7 @@ Container trim_left_by(UnaryPredicate p, const Container& xs)
 }
 
 // API search type: trim_left : (a, [a]) -> [a]
+// fwd bind count: 1
 // trim_left('_', "___abc__") == "abc__"
 // trim_left(0, [0,0,0,5,6,7,8,6,4]) == [5,6,7,8,6,4]
 template <typename Container,
@@ -253,6 +277,7 @@ Container trim_left(const T& x, const Container& xs)
 }
 
 // API search type: trim_token_left : ([a], [a]) -> [a]
+// fwd bind count: 1
 // trim_token_left([0,1,2], [0,1,2,0,1,2,7,5,9]) == [7,5,9]
 template <typename Container>
 Container trim_token_left(const Container& token, const Container& xs)
@@ -260,12 +285,13 @@ Container trim_token_left(const Container& token, const Container& xs)
     auto result = xs;
     while (is_prefix_of(token, result))
     {
-        result = get_range(size_of_cont(token), size_of_cont(result), result);
+        result = get_segment(size_of_cont(token), size_of_cont(result), result);
     }
     return result;
 }
 
 // API search type: trim_right_by : ((a -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // trim_right_by(is_even, [0,2,4,5,6,7,8,6,4]) == [0,2,4,5,6,7]
 template <typename Container, typename UnaryPredicate>
 Container trim_right_by(UnaryPredicate p, const Container& xs)
@@ -275,6 +301,7 @@ Container trim_right_by(UnaryPredicate p, const Container& xs)
 }
 
 // API search type: trim_right : (a, [a]) -> [a]
+// fwd bind count: 1
 // trim_right('_', "___abc__") == "___abc"
 // trim_right(4, [0,2,4,5,6,7,8,4,4]) == [0,2,4,5,6,7,8]
 template <typename Container,
@@ -285,6 +312,7 @@ Container trim_right(const T& x, const Container& xs)
 }
 
 // API search type: trim_token_right : ([a], [a]) -> [a]
+// fwd bind count: 1
 // trim_token_right([0,1,2], [7,5,9,0,1,2,0,1,2]) == [7,5,9]
 template <typename Container>
 Container trim_token_right(const Container& token, const Container& xs)
@@ -293,6 +321,7 @@ Container trim_token_right(const Container& token, const Container& xs)
 }
 
 // API search type: trim_by : ((a -> Bool), [a]) -> [a]
+// fwd bind count: 1
 // trim_by(is_even, [0,2,4,5,6,7,8,6,4]) == [5,6,7]
 template <typename Container, typename UnaryPredicate>
 Container trim_by(UnaryPredicate p, const Container& xs)
@@ -302,6 +331,7 @@ Container trim_by(UnaryPredicate p, const Container& xs)
 }
 
 // API search type: trim : (a, [a]) -> [a]
+// fwd bind count: 1
 // trim('_', "___abc__") == "abc"
 // trim(0, [0,2,4,5,6,7,8,0,0]) == [2,4,5,6,7,8]
 template <typename Container,
@@ -312,11 +342,114 @@ Container trim(const T& x, const Container& xs)
 }
 
 // API search type: trim_token : ([a], [a]) -> [a]
+// fwd bind count: 1
 // trim_token([0,1], [0,1,7,8,9,0,1]) == [7,8,9]
 template <typename Container>
 Container trim_token(const Container& token, const Container& xs)
 {
     return trim_token_right(token, trim_token_left(token, xs));
+}
+
+// API search type: adjacent_keep_snd_if : (((a, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
+// For each pair of adjacent elements in a source sequence,
+// evaluate the specified binary predicate.
+// If the predicate evaluates to false,
+// the second element of the pair is removed from the result sequence;
+// otherwise, it is included.
+// The first element in the source sequence is always included.
+// Also known as adjacent_filter.
+template <typename BinaryPredicate, typename Container>
+Container adjacent_keep_snd_if(BinaryPredicate p, const Container& xs)
+{
+    if (is_empty(xs))
+    {
+        return {};
+    }
+    internal::check_binary_predicate_for_container<BinaryPredicate, Container>();
+    Container result;
+    auto it = internal::get_back_inserter<Container>(result);
+    auto it_in = std::begin(xs);
+    *it = *it_in;
+    while (internal::add_to_iterator(it_in) != std::end(xs))
+    {
+        if (p(*it_in, *internal::add_to_iterator(it_in)))
+        {
+            *it = *internal::add_to_iterator(it_in);
+        }
+        internal::advance_iterator(it_in, 1);
+    }
+    return result;
+}
+
+// API search type: adjacent_drop_fst_if : (((a, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
+// For each pair of adjacent elements in a source sequence,
+// evaluate the specified binary predicate.
+// If the predicate evaluates to true,
+// the first element of the pair is removed from the result sequence;
+// otherwise, it is included.
+// The last element in the source sequence is always included.
+// Also known as adjacent_remove_if.
+template <typename BinaryPredicate, typename Container>
+Container adjacent_drop_fst_if(BinaryPredicate p, const Container& xs)
+{
+    if (is_empty(xs))
+    {
+        return {};
+    }
+    internal::check_binary_predicate_for_container<BinaryPredicate, Container>();
+    Container result;
+    auto it = internal::get_back_inserter<Container>(result);
+    auto it_in = std::begin(xs);
+    while (internal::add_to_iterator(it_in) != std::end(xs))
+    {
+        if (!p(*it_in, *internal::add_to_iterator(it_in)))
+        {
+            *it = *it_in;
+        }
+        internal::advance_iterator(it_in, 1);
+    }
+    *it = *it_in;
+    return result;
+}
+
+// API search type: adjacent_drop_snd_if : (((a, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
+// For each pair of adjacent elements in a source sequence,
+// evaluate the specified binary predicate.
+// If the predicate evaluates to true,
+// the second element of the pair is removed from the result sequence;
+// otherwise, it is included.
+// The first element in the source sequence is always included.
+template <typename BinaryPredicate, typename Container>
+Container adjacent_drop_snd_if(BinaryPredicate p, const Container& xs)
+{
+    typedef typename Container::value_type T;
+    const auto not_p = [&p](const T& x, const T& y) -> bool
+    {
+        return !p(x, y);
+    };
+    return adjacent_keep_snd_if(not_p, xs);
+}
+
+// API search type: adjacent_keep_fst_if : (((a, a) -> Bool), [a]) -> [a]
+// fwd bind count: 1
+// For each pair of adjacent elements in a source sequence,
+// evaluate the specified binary predicate.
+// If the predicate evaluates to false,
+// the first element of the pair is removed from the result sequence;
+// otherwise, it is included.
+// The last element in the source sequence is always included.
+template <typename BinaryPredicate, typename Container>
+Container adjacent_keep_fst_if(BinaryPredicate p, const Container& xs)
+{
+    typedef typename Container::value_type T;
+    const auto not_p = [&p](const T& x, const T& y) -> bool
+    {
+        return !p(x, y);
+    };
+    return adjacent_drop_fst_if(not_p, xs);
 }
 
 } // namespace fplus

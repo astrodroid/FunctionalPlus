@@ -6,7 +6,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
 #include <utility>
 
@@ -349,14 +349,9 @@ TEST_CASE("generate_test, inner_product")
     REQUIRE_EQ(fplus::inner_product_with(plus, mult, 0, xs, ys), 32);
 }
 
-TEST_CASE("generate_test, fill_pigeonholes")
+TEST_CASE("generate_test, numbers")
 {
-    const std::vector<unsigned int> xs = { 0, 1, 3, 1 };
-    REQUIRE_EQ(fplus::fill_pigeonholes_to(5, xs), std::vector<std::size_t>({1,2,0,1,0}));
-    REQUIRE_EQ(fplus::fill_pigeonholes_to(3, xs), std::vector<std::size_t>({1,2,0}));
-    REQUIRE_EQ(fplus::fill_pigeonholes(xs), std::vector<std::size_t>({1,2,0,1}));
-
-    REQUIRE_EQ(fplus::fill_pigeonholes_bool_to(3, xs), std::vector<unsigned char>({1,1,0}));
-    REQUIRE_EQ(fplus::fill_pigeonholes_bool_to(5, xs), std::vector<unsigned char>({1,1,0,1,0}));
-    REQUIRE_EQ(fplus::fill_pigeonholes_bool(xs), std::vector<unsigned char>({1,1,0,1}));
+    typedef std::vector<int> ints;
+    REQUIRE_EQ(fplus::numbers<int>(2, 5), ints({2,3,4}));
+    REQUIRE_EQ(fplus::numbers_step<int>(0, 6, 2), ints({0,2,4}));
 }

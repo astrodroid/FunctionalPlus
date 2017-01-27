@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "fplus/maybe.hpp"
-#include "fplus/result.hpp"
+#include <fplus/maybe.hpp>
+#include <fplus/result.hpp>
 
 #include <string>
 #include <type_traits>
@@ -112,7 +112,6 @@ namespace internal
     };
 }
 
-
 // API search type: read_value_result : String -> Result a
 // Try to deserialize a value.
 template <typename T>
@@ -137,7 +136,7 @@ result<T, std::string> read_value_result(const std::string& str)
 }
 
 // API search type: read_value : String -> Maybe a
-// Try to deserialize a value, e.g.:
+// Try to deserialize/parse a value, e.g.:
 // String to Int
 // String to Float
 // String to Double
@@ -150,6 +149,7 @@ maybe<T> read_value(const std::string& str)
 }
 
 // API search type: read_value_with_default : (a, String) -> a
+// fwd bind count: 1
 // Try to deserialize a value, return given default on failure, e.g.:
 // String to Int
 // String to Float

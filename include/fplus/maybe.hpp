@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "fplus/function_traits.hpp"
+#include <fplus/function_traits.hpp>
 
 #include <cassert>
 #include <exception>
@@ -44,6 +44,7 @@ private:
 };
 
 // API search type: is_just : Maybe a -> Bool
+// fwd bind count: 0
 // Is not nothing?
 template <typename T>
 bool is_just(const maybe<T>& maybe)
@@ -52,6 +53,7 @@ bool is_just(const maybe<T>& maybe)
 }
 
 // API search type: is_nothing : Maybe a -> Bool
+// fwd bind count: 0
 // Has no value?
 template <typename T>
 bool is_nothing(const maybe<T>& maybe)
@@ -60,6 +62,7 @@ bool is_nothing(const maybe<T>& maybe)
 }
 
 // API search type: unsafe_get_just : Maybe a -> a
+// fwd bind count: 0
 // Crashes if maybe is nothing!
 template <typename T>
 T unsafe_get_just(const maybe<T>& maybe)
@@ -68,6 +71,7 @@ T unsafe_get_just(const maybe<T>& maybe)
 }
 
 // API search type: just_with_default : (a, Maybe a) -> a
+// fwd bind count: 0
 // Get the value from a maybe or the default in case it is nothing.
 template <typename T>
 T just_with_default(const T& defaultValue, const maybe<T>& maybe)
@@ -78,6 +82,7 @@ T just_with_default(const T& defaultValue, const maybe<T>& maybe)
 }
 
 // API search type: throw_on_nothing : (e, Maybe a) -> a
+// fwd bind count: 1
 // Throw exception if nothing. Return value if just.
 template <typename E, typename T>
 T throw_on_nothing(const E& e, const maybe<T>& maybe)
@@ -88,6 +93,7 @@ T throw_on_nothing(const E& e, const maybe<T>& maybe)
 }
 
 // API search type: just : a -> Maybe a
+// fwd bind count: 0
 // Wrap a value in a Maybe as a Just.
 template <typename T>
 maybe<T> just(const T& val)
@@ -119,7 +125,8 @@ bool operator != (const maybe<T>& x, const maybe<T>& y)
     return !(x == y);
 }
 
-// API search type: lift_maybe : (a -> b) -> (Maybe a -> Maybe b)
+// API search type: lift_maybe : ((a -> b), Maybe a) -> Maybe b
+// fwd bind count: 1
 // Lifts a function into the maybe functor.
 // A function that for example was able to convert and int into a string,
 // now can convert a Maybe<int> into a Maybe<string>.
@@ -129,19 +136,17 @@ template <typename F,
         typename utils::function_traits<
             F>::template arg<0>::type>::type>::type,
     typename B = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<F>::result_type>::type>::type>
-std::function<maybe<B>(const maybe<A>&)> lift_maybe(F f)
+        typename std::result_of<F(A)>::type>::type>::type>
+maybe<B> lift_maybe(F f, const maybe<A>& m)
 {
     static_assert(utils::function_traits<F>::arity == 1, "Wrong arity.");
-    return [f](const maybe<A>& m) -> maybe<B>
-    {
-        if (is_just(m))
-            return just<B>(f(unsafe_get_just(m)));
-        return nothing<B>();
-    };
+    if (is_just(m))
+        return just<B>(f(unsafe_get_just(m)));
+    return nothing<B>();
 }
 
-// API search type: lift_maybe_def : (b, (a -> b)) -> (Maybe a -> b)
+// API search type: lift_maybe_def : (b, (a -> b), Maybe a) -> b
+// fwd bind count: 2
 // lift_maybe_def takes a default value and a function.
 // It returns a function taking a Maybe value.
 // This function returns the default value if the Maybe value is nothing.
@@ -152,20 +157,40 @@ template <typename F,
         typename utils::function_traits<
             F>::template arg<0>::type>::type>::type,
     typename B = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<F>::result_type>::type>::type>
-std::function<B(const maybe<A>&)> lift_maybe_def(const B& def, F f)
+        typename std::result_of<F(A)>::type>::type>::type>
+B lift_maybe_def(const B& def, F f, const maybe<A>& m)
 {
     static_assert(utils::function_traits<F>::arity == 1, "Wrong arity.");
-    return [f, def](const maybe<A>& m) -> B
-    {
-        if (is_just(m))
-            return f(unsafe_get_just(m));
-        return def;
-    };
+    if (is_just(m))
+        return f(unsafe_get_just(m));
+    return def;
 }
 
-// API search type: and_then_maybe : ((a -> Maybe b), (b -> Maybe c)) -> (a -> Maybe c)
+// API search type: and_then_maybe : ((a -> Maybe b), (Maybe a)) -> Maybe b
+// fwd bind count: 1
 // Monadic bind.
+// Returns nothing if the maybe already is nothing.
+// Otherwise return the result of applying
+// the function to the just value of the maybe.
+template <typename T, typename F,
+    typename FIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<F>::template arg<0>::type>::type>::type,
+    typename FOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<F(FIn)>::type>::type>::type,
+    typename FOutJustT = typename FOut::type>
+maybe<FOutJustT> and_then_maybe(F f, const maybe<T>& m)
+{
+    static_assert(utils::function_traits<F>::arity == 1, "Wrong arity.");
+    static_assert(std::is_convertible<T, FIn>::value,
+        "Function parameter types do not match.");
+    if (is_just(m))
+        return f(unsafe_get_just(m));
+    else
+        return nothing<FOutJustT>();
+}
+
+// API search type: compose_maybe : ((a -> Maybe b), (b -> Maybe c)) -> (a -> Maybe c)
+// Left-to-right Kleisli composition of monads (2 functions).
 // Composes two functions taking a value and returning Maybe.
 // If the first function returns a just, the value from the just
 // is extracted and shoved into the second function.
@@ -175,13 +200,13 @@ template <typename F, typename G,
         typename utils::function_traits<
             F>::template arg<0>::type>::type>::type,
     typename FOut = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<F>::result_type>::type>::type,
+        typename std::result_of<F(FIn)>::type>::type>::type,
     typename GIn = typename std::remove_const<typename std::remove_reference<
         typename utils::function_traits<G>::template arg<0>::type>::type>::type,
     typename GOut = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<G>::result_type>::type>::type,
+        typename std::result_of<G(GIn)>::type>::type>::type,
     typename T = typename GOut::type>
-std::function<maybe<T>(const FIn&)> and_then_maybe(F f, G g)
+std::function<maybe<T>(const FIn&)> compose_maybe(F f, G g)
 {
     static_assert(utils::function_traits<F>::arity == 1, "Wrong arity.");
     static_assert(utils::function_traits<G>::arity == 1, "Wrong arity.");
@@ -196,33 +221,54 @@ std::function<maybe<T>(const FIn&)> and_then_maybe(F f, G g)
     };
 }
 
-// API search type: and_then_maybe : ((a -> Maybe b), (b -> Maybe c), (c -> Maybe d)) -> (Maybe a -> Maybe d)
-// Monadic bind three functions.
+// API search type: compose_maybe : ((a -> Maybe b), (b -> Maybe c), (c -> Maybe d)) -> (Maybe a -> Maybe d)
+// Left-to-right Kleisli composition of monads (3 functions).
 template <typename F, typename G, typename H,
     typename FIn = typename std::remove_const<typename std::remove_reference<
         typename utils::function_traits<F>::template arg<0>::type>::type>::type,
+    typename FOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<F(FIn)>::type>::type>::type,
+    typename GIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<G>::template arg<0>::type>::type>::type,
+    typename GOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<G(GIn)>::type>::type>::type,
+    typename HIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<H>::template arg<0>::type>::type>::type,
     typename HOut = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<H>::result_type>::type>::type,
+        typename std::result_of<H(HIn)>::type>::type>::type,
     typename T = typename HOut::type>
-std::function<maybe<T>(const FIn&)> and_then_maybe(F f, G g, H h)
+std::function<maybe<T>(const FIn&)> compose_maybe(F f, G g, H h)
 {
-    return and_then_maybe(and_then_maybe(f, g), h);
+    return compose_maybe(compose_maybe(f, g), h);
 }
 
-// API search type: and_then_maybe : ((a -> Maybe b), (b -> Maybe c), (c -> Maybe d), (d -> Maybe e)) -> (Maybe a -> Maybe e)
-// Monadic bind four functions.
+// API search type: compose_maybe : ((a -> Maybe b), (b -> Maybe c), (c -> Maybe d), (d -> Maybe e)) -> (Maybe a -> Maybe e)
+// Left-to-right Kleisli composition of monads (4 functions).
 template <typename F, typename G, typename H, typename I,
     typename FIn = typename std::remove_const<typename std::remove_reference<
         typename utils::function_traits<F>::template arg<0>::type>::type>::type,
+    typename FOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<F(FIn)>::type>::type>::type,
+    typename GIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<G>::template arg<0>::type>::type>::type,
+    typename GOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<G(GIn)>::type>::type>::type,
+    typename HIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<H>::template arg<0>::type>::type>::type,
+    typename HOut = typename std::remove_const<typename std::remove_reference<
+        typename std::result_of<H(HIn)>::type>::type>::type,
+    typename IIn = typename std::remove_const<typename std::remove_reference<
+        typename utils::function_traits<I>::template arg<0>::type>::type>::type,
     typename IOut = typename std::remove_const<typename std::remove_reference<
-        typename utils::function_traits<I>::result_type>::type>::type,
+        typename std::result_of<I(IIn)>::type>::type>::type,
     typename T = typename IOut::type>
-std::function<maybe<T>(const FIn&)> and_then_maybe(F f, G g, H h, I i)
+std::function<maybe<T>(const FIn&)> compose_maybe(F f, G g, H h, I i)
 {
-    return and_then_maybe(and_then_maybe(and_then_maybe(f, g), h), i);
+    return compose_maybe(compose_maybe(compose_maybe(f, g), h), i);
 }
 
 // API search type: flatten_maybe : (Maybe (Maybe a)) -> Maybe a
+// fwd bind count: 0
 // Also known as join.
 template <typename T>
 maybe<T> flatten_maybe(const maybe<maybe<T>>& maybe_maybe)

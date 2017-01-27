@@ -6,7 +6,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
 
 namespace {
@@ -20,6 +20,21 @@ namespace {
     typedef std::deque<IntDeq> IntContCont;
     typedef IntDeq IntCont;
     typedef IntCont Row;
+
+    uint64_t fibo(uint64_t n)
+    {
+        if (n < 2)
+            return n;
+        else
+            return fibo(n-1) + fibo(n-2);
+    }
+    uint64_t fibo_cont(const std::function<uint64_t(uint64_t)>& cont, uint64_t n)
+    {
+        if (n < 2)
+            return n;
+        else
+            return cont(n-1) + cont(n-2);
+    }
 }
 
 class CompositionTestState {
@@ -99,8 +114,8 @@ TEST_CASE("composition_test, apply_to_pair")
 {
     using namespace fplus;
     auto APlusTwoTimesB = [](int a, int b) { return a + 2 * b; };
-    REQUIRE_EQ((apply_to_pair(APlusTwoTimesB)(std::make_pair(1, 2))), 5);
-    REQUIRE_EQ((apply_to_pair(APlusTwoTimesBFunc)(std::make_pair(1, 2))), 5);
+    REQUIRE_EQ((apply_to_pair(APlusTwoTimesB, std::make_pair(1, 2))), 5);
+    REQUIRE_EQ((apply_to_pair(APlusTwoTimesBFunc, std::make_pair(1, 2))), 5);
 }
 
 TEST_CASE("composition_test, state")
@@ -129,4 +144,37 @@ TEST_CASE("composition_test, memoize")
     REQUIRE_EQ(f(2), 4);
     REQUIRE_EQ(f(3), 9);
     REQUIRE_EQ(f(3), 9);
+
+    const auto add = [](int x, int y) -> int
+    {
+        return x + y;
+    };
+    auto add_memo = memoize_binary(add);
+    REQUIRE_EQ(add_memo(2, 3), 5);
+    REQUIRE_EQ(add_memo(2, 3), 5);
+    REQUIRE_EQ(add_memo(1, 2), 3);
+    REQUIRE_EQ(add_memo(1, 2), 3);
+
+    const auto fibo_memo = memoize_recursive(fibo_cont);
+
+    for (uint64_t n = 0; n < 10; ++n)
+    {
+        REQUIRE_EQ(fibo_memo(n), fibo(n));
+    }
+}
+
+TEST_CASE("composition_test, constructor_as_function")
+{
+    using namespace fplus;
+
+    struct foo
+    {
+        foo(int a, int b) : a_(a), b_(2*b) {}
+        int a_;
+        int b_;
+    };
+    const auto create_foo = constructor_as_function<foo, int, int>;
+    const auto my_foo = create_foo(1,2);
+    REQUIRE_EQ(my_foo.a_, 1);
+    REQUIRE_EQ(my_foo.b_, 4);
 }

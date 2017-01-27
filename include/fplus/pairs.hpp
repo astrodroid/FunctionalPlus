@@ -6,43 +6,41 @@
 
 #pragma once
 
-#include "fplus/container_common.hpp"
-#include "fplus/function_traits.hpp"
+#include <fplus/container_common.hpp>
+#include <fplus/function_traits.hpp>
 
 #include <utility>
 
 namespace fplus
 {
 
-// API search type: apply_to_pair : ((a, b) -> c) -> (((a, b)) -> c)
+// API search type: apply_to_pair : (((a, b) -> c), (a, b)) -> c
+// fwd bind count: 1
 // Apply binary function to parts of a pair.
 template <typename F,
     typename FIn0 = typename utils::function_traits<F>::template arg<0>::type,
     typename FIn1 = typename utils::function_traits<F>::template arg<1>::type,
-    typename FuncRes = typename utils::function_traits<F>::result_type,
-    typename ResFunc = typename std::function<FuncRes(const std::pair<FIn0, FIn1>&)>>
-ResFunc apply_to_pair(F f)
+    typename FOut = typename std::result_of<F(FIn0, FIn1)>::type>
+FOut apply_to_pair(F f, const std::pair<FIn0, FIn1>& p)
 {
-    check_arity<2, F>();
-    return [f](const std::pair<FIn0, FIn1>& pair)
-    {
-        return f(pair.first, pair.second);
-    };
+    internal::check_arity<2, F>();
+    return f(p.first, p.second);
 }
 
 // API search type: zip_with : (((a, b) -> c), [a], [b]) -> [c]
+// fwd bind count: 2
 // zip_with((+), [1, 2, 3], [5, 6]) == [6, 8]
 template <typename ContainerIn1, typename ContainerIn2, typename F,
     typename X = typename ContainerIn1::value_type,
     typename Y = typename ContainerIn2::value_type,
-    typename TOut = typename utils::function_traits<F>::result_type,
+    typename TOut = typename std::result_of<F(X, Y)>::type,
     typename ContainerOut = typename std::vector<TOut>>
 ContainerOut zip_with(F f,
         const ContainerIn1& xs, const ContainerIn2& ys)
 {
     static_assert(utils::function_traits<F>::arity == 2,
         "Function must take two parameters.");
-    typedef typename utils::function_traits<F>::result_type FOut;
+    typedef typename std::result_of<F(X, Y)>::type FOut;
     typedef typename utils::function_traits<F>::template arg<0>::type FIn0;
     typedef typename utils::function_traits<F>::template arg<1>::type FIn1;
     typedef typename ContainerIn1::value_type T1;
@@ -54,8 +52,8 @@ ContainerOut zip_with(F f,
     static_assert(std::is_convertible<FOut, TOut>::value,
         "Elements produced by this function can not be stored in ContainerOut.");
     static_assert(std::is_same<
-        typename same_cont_new_t<ContainerIn1, void>::type,
-        typename same_cont_new_t<ContainerIn2, void>::type>::value,
+        typename internal::same_cont_new_t<ContainerIn1, void>::type,
+        typename internal::same_cont_new_t<ContainerIn2, void>::type>::value,
         "Both Containers must be of same outer type.");
     ContainerOut result;
     std::size_t resultSize = std::min(size_of_cont(xs), size_of_cont(ys));
@@ -72,13 +70,69 @@ ContainerOut zip_with(F f,
     return result;
 }
 
+// API search type: zip_with_3 : (((a, b, c) -> d), [a], [b], [c]) -> [c]
+// fwd bind count: 3
+// zip_with_3((+), [1, 2, 3], [5, 6], [1, 1]) == [7, 9]
+template <typename ContainerIn1, typename ContainerIn2, typename ContainerIn3,
+    typename F,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename Z = typename ContainerIn3::value_type,
+    typename TOut = typename std::result_of<F(X, Y, Z)>::type,
+    typename ContainerOut = typename std::vector<TOut>>
+ContainerOut zip_with_3(F f,
+    const ContainerIn1& xs, const ContainerIn2& ys, const ContainerIn3& zs)
+{
+    static_assert(utils::function_traits<F>::arity == 3,
+        "Function must take two parameters.");
+    typedef typename std::result_of<F(X, Y, Z)>::type FOut;
+    typedef typename utils::function_traits<F>::template arg<0>::type FIn0;
+    typedef typename utils::function_traits<F>::template arg<1>::type FIn1;
+    typedef typename utils::function_traits<F>::template arg<2>::type FIn2;
+    typedef typename ContainerIn1::value_type T1;
+    typedef typename ContainerIn2::value_type T2;
+    typedef typename ContainerIn3::value_type T3;
+    static_assert(std::is_convertible<T1, FIn0>::value,
+        "Function does not take elements from first Container as first Parameter.");
+    static_assert(std::is_convertible<T2, FIn1>::value,
+        "Function does not take elements from second Container as second Parameter.");
+    static_assert(std::is_convertible<T3, FIn2>::value,
+        "Function does not take elements from third Container as third Parameter.");
+    static_assert(std::is_convertible<FOut, TOut>::value,
+        "Elements produced by this function can not be stored in ContainerOut.");
+    static_assert(std::is_same<
+        typename internal::same_cont_new_t<ContainerIn1, void>::type,
+        typename internal::same_cont_new_t<ContainerIn2, void>::type>::value,
+        "All three Containers must be of same outer type.");
+    static_assert(std::is_same<
+        typename internal::same_cont_new_t<ContainerIn2, void>::type,
+        typename internal::same_cont_new_t<ContainerIn3, void>::type>::value,
+        "All three Containers must be of same outer type.");
+    ContainerOut result;
+    std::size_t resultSize = std::min(size_of_cont(xs), size_of_cont(ys));
+    internal::prepare_container(result, resultSize);
+    auto itResult = internal::get_back_inserter(result);
+    auto itXs = std::begin(xs);
+    auto itYs = std::begin(ys);
+    auto itZs = std::begin(zs);
+    for (std::size_t i = 0; i < resultSize; ++i)
+    {
+        *itResult = f(*itXs, *itYs, *itZs);
+        ++itXs;
+        ++itYs;
+        ++itZs;
+    }
+    return result;
+}
+
 // API search type: zip_with_defaults : (((a, b) -> c), a, b, [a], [b]) -> [c]
+// fwd bind count: 4
 // zip_with_defaults((+), 6, 7, [1,2,3], [1,2]) == [2,4,10]
 // zip_with_defaults((+), 6, 7, [1,2], [1,2,3]) == [2,4,9]
 template <typename ContainerIn1, typename ContainerIn2, typename F,
     typename X = typename ContainerIn1::value_type,
     typename Y = typename ContainerIn2::value_type,
-    typename TOut = typename utils::function_traits<F>::result_type,
+    typename TOut = typename std::result_of<F(X, Y)>::type,
     typename ContainerOut = typename std::vector<TOut>>
 ContainerOut zip_with_defaults(F f,
         const X& default_x, const Y& default_y,
@@ -104,6 +158,7 @@ ContainerOut zip_with_defaults(F f,
 }
 
 // API search type: zip : ([a], [b]) -> [(a, b)]
+// fwd bind count: 1
 // zip([1, 2, 3], [5, 6]) == [(1, 5), (2, 6)]
 template <typename ContainerIn1, typename ContainerIn2,
     typename X = typename ContainerIn1::value_type,
@@ -118,13 +173,14 @@ ContainerOut zip(const ContainerIn1& xs, const ContainerIn2& ys)
 }
 
 // API search type: unzip : [(a, b)] -> ([a], [b])
+// fwd bind count: 0
 // unzip([(1, 5), (2, 6)]) == ([1, 2], [5, 6])
 template <typename ContainerIn,
     typename TIn = typename ContainerIn::value_type,
     typename X = typename TIn::first_type,
     typename Y = typename TIn::second_type,
-    typename ContainerOutX = typename same_cont_new_t<ContainerIn, X>::type,
-    typename ContainerOutY = typename same_cont_new_t<ContainerIn, Y>::type>
+    typename ContainerOutX = typename internal::same_cont_new_t<ContainerIn, X>::type,
+    typename ContainerOutY = typename internal::same_cont_new_t<ContainerIn, Y>::type>
 std::pair<ContainerOutX, ContainerOutY> unzip(const ContainerIn& pairs)
 {
     ContainerOutX firsts;
@@ -142,6 +198,7 @@ std::pair<ContainerOutX, ContainerOutY> unzip(const ContainerIn& pairs)
 }
 
 // API search type: fst : ((a, b)) -> a
+// fwd bind count: 0
 // fst((0, 1)) == 0
 template <typename X, typename Y>
 X fst(const std::pair<X, Y>& pair)
@@ -150,6 +207,7 @@ X fst(const std::pair<X, Y>& pair)
 }
 
 // API search type: snd : ((a, b)) -> b
+// fwd bind count: 0
 // snd((0, 1)) == 1
 template <typename X, typename Y>
 Y snd(const std::pair<X, Y>& pair)
@@ -158,28 +216,31 @@ Y snd(const std::pair<X, Y>& pair)
 }
 
 // API search type: transform_fst : ((a -> c), (a, b)) -> (c, b)
+// fwd bind count: 1
 // transform_fst(square, (4, 5)) == (16, 5)
 template <typename X, typename Y, typename F,
-    typename ResultFirst = typename utils::function_traits<F>::result_type>
+    typename ResultFirst = typename std::result_of<F(X)>::type>
 std::pair<ResultFirst, Y> transform_fst(F f, const std::pair<X, Y>& pair)
 {
     return std::make_pair(f(pair.first), pair.second);
 }
 
 // API search type: transform_snd : ((b -> c), (a, b)) -> (a, c)
+// fwd bind count: 1
 // transform_snd(square, (4, 5)) == (4, 25)
 template <typename X, typename Y, typename F,
-    typename ResultSecond = typename utils::function_traits<F>::result_type>
+    typename ResultSecond = typename std::result_of<F(Y)>::type>
 std::pair<X, ResultSecond> transform_snd(F f, const std::pair<X, Y>& pair)
 {
     return std::make_pair(pair.first, f(pair.second));
 }
 
 // API search type: transform_pair : ((a -> c), (b -> d), (a, b)) -> (c, d)
+// fwd bind count: 2
 // transform_pair(square, square, (4, 5)) == (16, 25)
 template <typename X, typename Y, typename F, typename G,
-    typename ResultFirst = typename utils::function_traits<F>::result_type,
-    typename ResultSecond = typename utils::function_traits<G>::result_type>
+    typename ResultFirst = typename std::result_of<F(X)>::type,
+    typename ResultSecond = typename std::result_of<G(Y)>::type>
 std::pair<ResultFirst, ResultSecond> transform_pair(
     F f, G g, const std::pair<X, Y>& pair)
 {
@@ -187,6 +248,7 @@ std::pair<ResultFirst, ResultSecond> transform_pair(
 }
 
 // API search type: swap_pair_elems : (a, b) -> (b, a)
+// fwd bind count: 0
 // swap_pair_elems((3,4)) == (4,3)
 template <typename X, typename Y>
 std::pair<Y, X> swap_pair_elems(const std::pair<X, Y>& pair)
@@ -195,22 +257,60 @@ std::pair<Y, X> swap_pair_elems(const std::pair<X, Y>& pair)
 }
 
 // API search type: swap_pairs_elems : [(a, b)] -> [(b, a)]
+// fwd bind count: 0
 // swap_pairs_elems([(1,2), (3,4)]) == [(2,1), (4,3)]
 template <typename ContainerIn,
     typename X = typename ContainerIn::value_type::first_type,
     typename Y = typename ContainerIn::value_type::second_type,
     typename ContainerOut =
-        typename same_cont_new_t<ContainerIn, std::pair<Y, X>>::type>
+        typename internal::same_cont_new_t<ContainerIn, std::pair<Y, X>>::type>
 ContainerOut swap_pairs_elems(const ContainerIn& xs)
 {
     return fplus::transform(swap_pair_elems<X, Y>, xs);
 }
 
+// API search type: adjacent_pairs : [a] -> [(a, a)]
+// fwd bind count: 0
+// adjacent_pairs([0,1,2,3,4]) == [(0,1),(2,3)]
+template <typename Container,
+    typename ContainerOut =
+        typename internal::same_cont_new_t<Container,
+            std::pair<
+                typename Container::value_type,
+                    typename Container::value_type>>::type>
+ContainerOut adjacent_pairs(const Container& xs)
+{
+    typedef typename Container::value_type T;
+    static_assert(std::is_convertible<
+            std::pair<T, T>,
+            typename ContainerOut::value_type>::value,
+        "ContainerOut can not store pairs of elements from ContainerIn.");
+    ContainerOut result;
+    if (size_of_cont(xs) < 2)
+        return result;
+    const std::size_t out_size = size_of_cont(xs) / 2;
+    internal::prepare_container(result, out_size);
+    auto itOut = internal::get_back_inserter(result);
+    auto it1 = std::begin(xs);
+    auto it2 = it1;
+    internal::advance_iterator(it2, 1);
+    const auto it_source_end =
+        internal::add_to_iterator(std::begin(xs), out_size + out_size);
+    for (; it1 != it_source_end;
+            internal::advance_iterator(it1, 2),
+            internal::advance_iterator(it2, 2))
+    {
+        *itOut = std::make_pair(*it1, *it2);
+    }
+    return result;
+}
+
 // API search type: overlapping_pairs : [a] -> [(a, a)]
+// fwd bind count: 0
 // overlapping_pairs([0,1,2,3]) == [(0,1),(1,2),(2,3)]
 template <typename Container,
     typename ContainerOut =
-        typename same_cont_new_t<Container,
+        typename internal::same_cont_new_t<Container,
             std::pair<
                 typename Container::value_type,
                     typename Container::value_type>>::type>
@@ -228,7 +328,7 @@ ContainerOut overlapping_pairs(const Container& xs)
     auto itOut = internal::get_back_inserter(result);
     auto it1 = std::begin(xs);
     auto it2 = it1;
-    std::advance(it2, 1);
+    internal::advance_iterator(it2, 1);
     for (; it2 != std::end(xs); ++it1, ++it2)
     {
         *itOut = std::make_pair(*it1, *it2);
@@ -237,6 +337,7 @@ ContainerOut overlapping_pairs(const Container& xs)
 }
 
 // API search type: enumerate : [a] -> [(Int, a)]
+// fwd bind count: 0
 // enumerate([6,4,7,6]) == [(0, 6), (1, 4), (2, 7), (3, 6)]
 template <typename Container,
     typename T = typename Container::value_type>
@@ -246,11 +347,14 @@ std::vector<std::pair<std::size_t, T>> enumerate(const Container& xs)
 }
 
 // API search type: inner_product_with : (((a, a) -> b), ((b, b) -> b), b, [a], [a]) -> b
+// fwd bind count: 4
 // inner_product_with((+), (*), [1, 2, 3], [4, 5, 6]) == [32]
 template <typename ContainerIn1, typename ContainerIn2,
     typename OP1, typename OP2,
     typename Z,
-    typename TOut = typename utils::function_traits<OP2>::result_type>
+    typename OP1In0 = typename utils::function_traits<OP1>::template arg<0>::type,
+    typename OP1In1 = typename utils::function_traits<OP1>::template arg<1>::type,
+    typename TOut = typename std::result_of<OP1(OP1In0, OP1In1)>::type>
 TOut inner_product_with(OP1 op1, OP2 op2, const Z& value,
         const ContainerIn1& xs, const ContainerIn2& ys)
 {
@@ -260,6 +364,7 @@ TOut inner_product_with(OP1 op1, OP2 op2, const Z& value,
 }
 
 // API search type: inner_product : (a, [a], [a]) -> a
+// fwd bind count: 2
 // inner_product([1, 2, 3], [4, 5, 6]) == [32]
 template <typename ContainerIn1, typename ContainerIn2,
     typename Z>
@@ -270,6 +375,126 @@ Z inner_product(const Z& value,
 
     return std::inner_product(
         std::begin(xs), std::end(xs), std::begin(ys), value);
+}
+
+// API search type: first_mismatch_by : ((a, b) -> Bool), [a], [b]) -> Maybe (a, b)
+// fwd bind count: 2
+// first_mismatch_by((==), [1, 2, 3], [1, 4, 3]) == Just (2, 4)
+// first_mismatch_by((==), [1, 2, 3], [1, 4]) == Just (2, 4)
+// first_first_mismatch_by((==), [1, 2, 3], [1, 2]) == Nothing
+// first_mismatch_by((==), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename F,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_mismatch_by(F f, const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    auto itXs = std::begin(xs);
+    auto itYs = std::begin(ys);
+    std::size_t minSize = std::min(size_of_cont(xs), size_of_cont(ys));
+    for (std::size_t i = 0; i < minSize; ++i)
+    {
+        if (!f(*itXs, *itYs))
+        {
+            return just(std::make_pair(*itXs, *itYs));
+        }
+        ++itXs;
+        ++itYs;
+    }
+    return nothing<TOut>();
+}
+
+// API search type: first_mismatch_on : ((a -> Bool), [a], [a]) -> Maybe (a, a)
+// fwd bind count: 2
+// first_mismatch_on((mod 2), [1, 2, 3], [3, 5, 3]) == Just (2, 5)
+// first_mismatch_on((mod 2), [1, 2, 3], [1, 5]) == Just (2, 5)
+// first_mismatch_on((mod 2), [1, 2, 3], [1, 6]) == Nothing
+// first_mismatch_on((mod 2), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename F,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_mismatch_on(F f, const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    static_assert(std::is_same<X, Y>::value,
+        "Both containers must have the same element type.");
+    return first_mismatch_by(is_equal_by(f), xs, ys);
+}
+
+// API search type: first_mismatch : ([a], [a]) -> Maybe (a, a)
+// fwd bind count: 2
+// first_mismatch((==), [1, 2, 3], [1, 4, 3]) == Just (2, 4)
+// first_mismatch((==), [1, 2, 3], [1, 4]) == Just (2, 4)
+// first_mismatch((==), [1, 2, 3], [1, 2]) == Nothing
+// first_mismatch((==), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_mismatch(const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    static_assert(std::is_same<X, Y>::value,
+        "Both containers must have the same element type.");
+    return first_mismatch_by(std::equal_to<X>(), xs, ys);
+}
+
+// API search type: first_match_by : ((a, b) -> Bool), [a], [b]) -> Maybe (a, b)
+// fwd bind count: 2
+// first_match_by((==), [1, 2, 3], [3, 2, 3]) == Just (2, 2)
+// first_match_by((==), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename F,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_match_by(F f, const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    auto itXs = std::begin(xs);
+    auto itYs = std::begin(ys);
+    std::size_t minSize = std::min(size_of_cont(xs), size_of_cont(ys));
+    for (std::size_t i = 0; i < minSize; ++i)
+    {
+        if (f(*itXs, *itYs))
+        {
+            return just(std::make_pair(*itXs, *itYs));
+        }
+        ++itXs;
+        ++itYs;
+    }
+    return nothing<TOut>();
+}
+
+// API search type: first_match_on : ((a -> Bool), [a], [a]) -> Maybe (a, a)
+// fwd bind count: 2
+// first_match_on((mod 2), [1, 2, 3], [2, 4, 3]) == Just (2, 4)
+// first_match_on((mod 2), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename F,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_match_on(F f, const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    static_assert(std::is_same<X, Y>::value,
+        "Both containers must have the same element type.");
+    return first_match_by(is_equal_by(f), xs, ys);
+}
+
+// API search type: first_match : ([a], [a]) -> Maybe (a, a)
+// fwd bind count: 2
+// first_match((==), [1, 2, 3], [5, 2, 3]) == Just (2, 2)
+// first_match((==), [], [1, 2]) == Nothing
+template <typename ContainerIn1, typename ContainerIn2,
+    typename X = typename ContainerIn1::value_type,
+    typename Y = typename ContainerIn2::value_type,
+    typename TOut = std::pair<X, Y>>
+maybe<TOut> first_match(const ContainerIn1& xs, const ContainerIn2& ys)
+{
+    static_assert(std::is_same<X, Y>::value,
+        "Both containers must have the same element type.");
+    return first_match_by(std::equal_to<X>(), xs, ys);
 }
 
 } // namespace fplus

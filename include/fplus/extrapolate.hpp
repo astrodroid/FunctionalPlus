@@ -6,14 +6,15 @@
 
 #pragma once
 
-#include "fplus/container_common.hpp"
-#include "fplus/maybe.hpp"
+#include <fplus/container_common.hpp>
+#include <fplus/maybe.hpp>
 
 namespace fplus
 {
 
 // API search type: elem_at_idx_or_nothing : (Int, [a]) -> Maybe a
-// Returns nothing if index is out of range.
+// fwd bind count: 1
+// Returns nothing if index is outside of xs.
 template <typename Container,
     typename T = typename Container::value_type>
 maybe<T> elem_at_idx_or_nothing(signed int idx, const Container& xs)
@@ -23,11 +24,12 @@ maybe<T> elem_at_idx_or_nothing(signed int idx, const Container& xs)
         return {};
     }
     auto it = std::begin(xs);
-    std::advance(it, idx);
+    internal::advance_iterator(it, static_cast<std::size_t>(idx));
     return *it;
 }
 
 // API search type: elem_at_idx_or_constant : (a, Int, [a]) -> a
+// fwd bind count: 2
 // iiiiii|abcdefgh|iiiiiii
 template <typename Container,
     typename T = typename Container::value_type>
@@ -38,13 +40,14 @@ T elem_at_idx_or_constant(const T& c, signed int idx, const Container& xs)
         return c;
     }
     auto it = std::begin(xs);
-    std::advance(it, idx);
+    internal::advance_iterator(it, static_cast<std::size_t>(idx));
     return *it;
 }
 
 // API search type: elem_at_idx_or_replicate : (Int, [a]) -> a
+// fwd bind count: 1
 // aaaaaa|abcdefgh|hhhhhhh
-// xs must not be empty.
+// xs must be non-empty.
 template <typename Container,
     typename T = typename Container::value_type>
 T elem_at_idx_or_replicate(signed int idx, const Container& xs)
@@ -59,14 +62,15 @@ T elem_at_idx_or_replicate(signed int idx, const Container& xs)
         return xs.back();
     }
     auto it = std::begin(xs);
-    std::advance(it, idx);
+    internal::advance_iterator(it, static_cast<std::size_t>(idx));
     return *it;
 }
 
 // API search type: elem_at_idx_or_wrap : (Int, [a]) -> a
+// fwd bind count: 1
 // For cyclic element access
 // cdefgh|abcdefgh|abcdefg
-// xs must not be empty.
+// xs must be non-empty.
 template <typename Container,
     typename T = typename Container::value_type>
 T elem_at_idx_or_wrap(signed int idx, const Container& xs)
@@ -78,13 +82,14 @@ T elem_at_idx_or_wrap(signed int idx, const Container& xs)
     else
         idx = idx % cont_size;
     auto it = std::begin(xs);
-    std::advance(it, idx);
+    internal::advance_iterator(it, static_cast<std::size_t>(idx));
     return *it;
 }
 
 // API search type: extrapolate_replicate : (Int, Int, [a]) -> [a]
+// fwd bind count: 2
 // aaaaaa|abcdefgh|hhhhhhh
-// xs must not be empty.
+// xs must be non-empty.
 template <typename Container,
     typename T = typename Container::value_type>
 Container extrapolate_replicate(std::size_t count_begin, std::size_t count_end,
@@ -105,8 +110,9 @@ Container extrapolate_replicate(std::size_t count_begin, std::size_t count_end,
 }
 
 // API search type: extrapolate_wrap : (Int, Int, [a]) -> [a]
+// fwd bind count: 2
 // cdefgh|abcdefgh|abcdefg
-// xs must not be empty.
+// xs must be non-empty.
 template <typename Container,
     typename T = typename Container::value_type>
 Container extrapolate_wrap(std::size_t count_begin, std::size_t count_end,

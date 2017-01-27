@@ -6,14 +6,15 @@
 
 #pragma once
 
-#include "fplus/container_common.hpp"
-#include "fplus/compare.hpp"
-#include "fplus/split.hpp"
+#include <fplus/container_common.hpp>
+#include <fplus/compare.hpp>
+#include <fplus/split.hpp>
 
 namespace fplus
 {
 
 // API search type: replace_if : ((a -> Bool), a, [a]) -> [a]
+// fwd bind count: 2
 // replace_if(is_even, 0, [1, 3, 4, 6, 7]) == [1, 3, 0, 0, 7]
 template <typename UnaryPredicate, typename Container>
 Container replace_if(UnaryPredicate p,
@@ -30,7 +31,27 @@ Container replace_if(UnaryPredicate p,
     return result;
 }
 
+// API search type: replace_elem_at_idx : (Int, a, [a]) -> [a]
+// fwd bind count: 2
+// replace_elem_at_idx(2, 0, [1, 3, 4, 4, 7]) == [1, 3, 0, 4, 7]
+template <typename Container,
+        typename T = typename Container::value_type>
+Container replace_elem_at_idx(std::size_t idx, const T& dest, const Container& xs)
+{
+    Container result;
+    internal::prepare_container(result, size_of_cont(xs));
+    auto itOut = internal::get_back_inserter(result);
+    std::size_t i = 0;
+    for (const auto& x : xs)
+    {
+        *itOut = i == idx ? dest : x;
+        ++i;
+    }
+    return result;
+}
+
 // API search type: replace_elems : (a, a, [a]) -> [a]
+// fwd bind count: 2
 // replace_elems(4, 0, [1, 3, 4, 4, 7]) == [1, 3, 0, 0, 7]
 template <typename Container,
         typename T = typename Container::value_type>
@@ -40,6 +61,7 @@ Container replace_elems(const T& source, const T& dest, const Container& xs)
 }
 
 // API search type: replace_tokens : ([a], [a], [a]) -> [a]
+// fwd bind count: 2
 // replace_tokens("haha", "hihi", "oh, hahaha!") == "oh, hihiha!"
 template <typename Container>
 Container replace_tokens

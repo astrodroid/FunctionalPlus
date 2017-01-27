@@ -6,7 +6,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
 
 namespace {
@@ -20,7 +20,7 @@ namespace {
     fplus::result<int, std::string> sqrtToResultInt(int x)
     {
         return x < 0 ? fplus::error<int>(std::string("no sqrt of negative numbers")) :
-                fplus::ok<int, std::string>(fplus::round<int>(sqrt(static_cast<float>(x))));
+                fplus::ok<int, std::string>(fplus::round(sqrt(static_cast<float>(x))));
     }
 
     float IntToFloat(const int& x)
@@ -56,23 +56,46 @@ TEST_CASE("result_test, ok_with_default")
 TEST_CASE("result_test, and_then_result")
 {
     using namespace fplus;
+    auto ok_4 = ok<int, std::string>(4);
+    auto ok_2 = ok<int, std::string>(2);
+    auto an_error = error<int, std::string>("an error");
+    REQUIRE_EQ(and_then_result(sqrtToResultInt, ok_4), ok_2);
+    REQUIRE_EQ(and_then_result(sqrtToResultInt, an_error), an_error);
+
+    const auto string_to_result_int_string =
+        [](const std::string& str) -> result<int, std::string>
+    {
+        if (str == "42") return ok<int, std::string>(42);
+        else return error<int, std::string>("not 42");
+    };
+    REQUIRE_EQ(and_then_result(string_to_result_int_string, (ok<std::string, std::string>("3"))), (error<int, std::string>("not 42")));
+    REQUIRE_EQ(and_then_result(string_to_result_int_string, (ok<std::string, std::string>("42"))), (ok<int, std::string>(42)));
+    REQUIRE_EQ(and_then_result(string_to_result_int_string, (error<std::string, std::string>("error"))), (error<int, std::string>("error")));
+}
+
+TEST_CASE("result_test, compose_result")
+{
+    using namespace fplus;
     auto x = ok<int, std::string>(2);
     auto y = error<int, std::string>("an error");
-    auto squareResult = lift_result<std::string>(square<int>);
-    auto sqrtAndSqrt = and_then_result(sqrtToResult, sqrtToResult);
-    REQUIRE_EQ(squareResult(x), (ok<int, std::string>(4)));
-    REQUIRE_EQ(squareResult(y), (error<int>(std::string("an error"))));
+    auto sqrtAndSqrt = compose_result(sqrtToResult, sqrtToResult);
+    REQUIRE_EQ(lift_result(square<int>, x), (ok<int, std::string>(4)));
+    REQUIRE_EQ(lift_result(square<int>, y), (error<int>(std::string("an error"))));
 
-    auto sqrtIntAndSqrtIntAndSqrtInt = and_then_result(sqrtToResultInt, sqrtToResultInt, sqrtToResultInt);
+    auto sqrtIntAndSqrtIntAndSqrtInt = compose_result(sqrtToResultInt, sqrtToResultInt, sqrtToResultInt);
     REQUIRE_EQ(sqrtIntAndSqrtIntAndSqrtInt(256), (ok<int, std::string>(2)));
-    auto sqrtIntAndSqrtIntAndSqrtIntAndSqrtInt = and_then_result(sqrtToResultInt, sqrtToResultInt, sqrtToResultInt, sqrtToResultInt);
+    auto sqrtIntAndSqrtIntAndSqrtIntAndSqrtInt = compose_result(sqrtToResultInt, sqrtToResultInt, sqrtToResultInt, sqrtToResultInt);
     REQUIRE_EQ(sqrtIntAndSqrtIntAndSqrtIntAndSqrtInt(65536), (ok<int, std::string>(2)));
 
-    auto LiftedIntToFloat = lift_result<std::string>(IntToFloat);
+    const auto LiftedIntToFloat =
+    [](const result<int, std::string>& r) -> result<float, std::string>
+    {
+        return lift_result(IntToFloat, r);
+    };
     auto OkInt = ok<int, std::string>;
     auto IntToResultFloat = compose(OkInt, LiftedIntToFloat);
-    auto IntToFloatAndSqrtAndSqrt = and_then_result(IntToResultFloat, sqrtAndSqrt);
-    REQUIRE(is_in_range(1.41f, 1.42f)(unsafe_get_ok<float>
+    auto IntToFloatAndSqrtAndSqrt = compose_result(IntToResultFloat, sqrtAndSqrt);
+    REQUIRE(is_in_interval(1.41f, 1.42f, unsafe_get_ok<float>
             (IntToFloatAndSqrtAndSqrt(4))));
 }
 
@@ -82,7 +105,7 @@ TEST_CASE("result_test, lift")
     auto x = ok<int, std::string>(2);
     auto y = error<int, std::string>("an error");
     auto SquareAndSquare = compose(square<int>, square<int>);
-    REQUIRE_EQ((lift_result<std::string>(SquareAndSquare))(x), (ok<int, std::string>(16)));
+    REQUIRE_EQ((lift_result<std::string>(SquareAndSquare, x)), (ok<int, std::string>(16)));
 }
 
 TEST_CASE("result_test, lift_both")
@@ -90,8 +113,8 @@ TEST_CASE("result_test, lift_both")
     using namespace fplus;
     const auto x = ok<int, std::string>(2);
     const auto y = error<int, std::string>("an error");
-    REQUIRE_EQ(lift_result_both(square<int>, to_upper_case<std::string>)(x), (ok<int, std::string>(4)));
-    REQUIRE_EQ(lift_result_both(square<int>, to_upper_case<std::string>)(y), (error<int, std::string>("AN ERROR")));
+    REQUIRE_EQ(lift_result_both(square<int>, to_upper_case<std::string>, x), (ok<int, std::string>(4)));
+    REQUIRE_EQ(lift_result_both(square<int>, to_upper_case<std::string>, y), (error<int, std::string>("AN ERROR")));
 }
 
 TEST_CASE("result_test, unify_result")
@@ -99,7 +122,10 @@ TEST_CASE("result_test, unify_result")
     using namespace fplus;
     const auto x = ok<int, std::string>(2);
     const auto y = error<int, std::string>("an error");
-    const auto unify = unify_result(show<int>, to_upper_case<std::string>);
+    const auto unify = [](const result<int, std::string>& r) -> std::string
+    {
+        return unify_result(show<int>, to_upper_case<std::string>, r);
+    };
     REQUIRE_EQ(unify(x), "2");
     REQUIRE_EQ(unify(y), "AN ERROR");
 }
@@ -138,7 +164,7 @@ TEST_CASE("result_test, show_result")
     REQUIRE_EQ(show_result(error<int, std::string>("fail")), std::string("Error fail"));
     auto x = ok<int, std::string>(2);
     REQUIRE_EQ((to_maybe<int, std::string>(x)), just(2));
-    REQUIRE_EQ((from_maybe<int, std::string>(just(2), std::string("no error"))), x);
+    REQUIRE_EQ((from_maybe<std::string, int>(std::string("no error"), just(2))), x);
 }
 
 TEST_CASE("result_test, exceptions")

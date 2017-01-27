@@ -6,7 +6,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
 
 namespace {
@@ -43,9 +43,11 @@ TEST_CASE("filter_test, drop_if")
 
 TEST_CASE("filter_test, without")
 {
-    const std::vector<int> v = { 1, 0, 0, 5, 3, 0, 1 };
-    auto result = fplus::drop_if(is_even, v);
-    REQUIRE_EQ(result, std::vector<int>({1, 5, 3, 1}));
+    using namespace fplus;
+    typedef std::vector<int> Ints;
+    REQUIRE_EQ(without(1, Ints({1,2,3})), Ints({2,3}));
+    REQUIRE_EQ(without(5, Ints({1,2,3})), Ints({1,2,3}));
+    REQUIRE_EQ(without(5, Ints({})), Ints({}));
 }
 
 TEST_CASE("filter_test, keep_if_with_idx")
@@ -82,6 +84,13 @@ TEST_CASE("filter_test, keep_idxs")
     const std::vector<std::size_t> indices = { 2, 5 };
     auto result = fplus::keep_idxs(indices, v);
     REQUIRE_EQ(result, std::vector<int>({3, 6}));
+}
+
+TEST_CASE("filter_test, drop_idx")
+{
+    const std::vector<int> v = { 1, 2, 3, 4, 5, 6, 7 };
+    auto result = fplus::drop_idx(2, v);
+    REQUIRE_EQ(result, std::vector<int>({1, 2, 4, 5, 6, 7}));
 }
 
 TEST_CASE("filter_test, drop_idxs")
@@ -203,4 +212,32 @@ TEST_CASE("filter_test, trim_token")
     const std::vector<int> token = { 0, 1 };
     auto result = fplus::trim_token(token, v);
     REQUIRE_EQ(result, std::vector<int>({7, 8, 9}));
+}
+
+TEST_CASE("filter_test, adjacent_keep_snd_if")
+{
+    const std::vector<int> v = { 0, 1, 7, 8, 9, 0, 1 };
+    REQUIRE_EQ(fplus::adjacent_keep_snd_if(std::greater<int>(), v), std::vector<int>({0,0}));
+    REQUIRE_EQ(fplus::adjacent_keep_snd_if(std::less<int>(), v), std::vector<int>({0,1,7,8,9,1}));
+}
+
+TEST_CASE("filter_test, adjacent_drop_snd_if")
+{
+    const std::vector<int> v = { 0, 1, 7, 8, 9, 0, 1 };
+    REQUIRE_EQ(fplus::adjacent_drop_snd_if(std::less<int>(), v), std::vector<int>({0,0}));
+    REQUIRE_EQ(fplus::adjacent_drop_snd_if(std::greater<int>(), v), std::vector<int>({0,1,7,8,9,1}));
+}
+
+TEST_CASE("filter_test, adjacent_drop_fst_if")
+{
+    const std::vector<int> v = { 0, 1, 7, 8, 9, 0, 1 };
+    REQUIRE_EQ(fplus::adjacent_drop_fst_if(std::less<int>(), v), std::vector<int>({9,1}));
+    REQUIRE_EQ(fplus::adjacent_drop_fst_if(std::greater<int>(), v), std::vector<int>({0,1,7,8,0,1}));
+}
+
+TEST_CASE("filter_test, adjacent_keep_fst_if")
+{
+    const std::vector<int> v = { 0, 1, 7, 8, 9, 0, 1 };
+    REQUIRE_EQ(fplus::adjacent_keep_fst_if(std::greater<int>(), v), std::vector<int>({9,1}));
+    REQUIRE_EQ(fplus::adjacent_keep_fst_if(std::less<int>(), v), std::vector<int>({0,1,7,8,0,1}));
 }

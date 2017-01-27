@@ -4,7 +4,7 @@
 // (See accompanying file LICENSE_1_0.txt or copy at
 //  http://www.boost.org/LICENSE_1_0.txt)
 
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -18,27 +18,28 @@
 #include <string>
 #include <vector>
 
-bool is_odd(int x) { return x % 2 == 1; }
+bool is_odd_int(int x) { return x % 2 == 1; }
+
 void Test_example_KeepIf()
 {
     typedef std::vector<int> Ints;
-    Ints numbers = { 24, 11, 65, 44, 80, 18, 73, 90, 69, 18 };
+    Ints values = { 24, 11, 65, 44, 80, 18, 73, 90, 69, 18 };
 
     { // Version 1: hand written range based for loop
-    Ints odds;
-    for (int x : numbers)
-        if (is_odd(x))
-            odds.push_back(x);
+        Ints odds;
+        for (int x : values)
+            if (is_odd_int(x))
+                odds.push_back(x);
     }
 
     { // Version 2: STL
-    Ints odds;
-    std::copy_if(std::begin(numbers), std::end(numbers),
-            std::back_inserter(odds), is_odd);
+        Ints odds;
+        std::copy_if(std::begin(values), std::end(values),
+                std::back_inserter(odds), is_odd_int);
     }
 
     { // Version : FunctionalPlus
-    auto odds = fplus::keep_if(is_odd, numbers);
+        auto odds = fplus::keep_if(is_odd_int, values);
     }
 }
 
@@ -62,23 +63,23 @@ void Test_example_KeepIf_performance()
     using namespace fplus;
 
     typedef std::vector<int> Ints;
-    auto run_loop = [&](const Ints numbers)
+    auto run_loop = [&](const Ints values)
     {
         Ints odds;
-        for (int x : numbers)
-            if (is_odd(x))
+        for (int x : values)
+            if (is_odd_int(x))
                 odds.push_back(x);
         return odds;
     };
-    auto run_stl = [&](const Ints numbers)
+    auto run_stl = [&](const Ints values)
     {
         Ints odds;
-            std::copy_if(std::begin(numbers), std::end(numbers),
-                    std::back_inserter(odds), is_odd);
+        std::copy_if(std::begin(values), std::end(values),
+                std::back_inserter(odds), is_odd_int);
         return odds;
     };
-    auto run_FunctionalPlus = [&](const Ints numbers)
-        { return keep_if(is_odd, numbers); };
+    auto run_FunctionalPlus = [&](const Ints values)
+        { return keep_if(is_odd_int, values); };
 
     // make debug runs faster
 #if defined NDEBUG || defined _DEBUG
@@ -87,10 +88,10 @@ void Test_example_KeepIf_performance()
     std::size_t numRuns = 20000;
 #endif
 
-    Ints numbers = generate<Ints>(rand, 5000);
-    run_n_times(run_loop, numRuns, "Hand-written for loop", numbers);
-    run_n_times(run_stl, numRuns, "std::copy_if", numbers);
-    run_n_times(run_FunctionalPlus, numRuns, "FunctionalPlus::keep_if", numbers);
+    Ints values = generate<Ints>(rand, 5000);
+    run_n_times(run_loop, numRuns, "Hand-written for loop", values);
+    run_n_times(run_stl, numRuns, "std::copy_if", values);
+    run_n_times(run_FunctionalPlus, numRuns, "FunctionalPlus::keep_if", values);
 }
 
 
@@ -105,7 +106,7 @@ void Test_example_IInTeam()
 {
     std::string team = "Our team is great. I love everybody I work with.";
     std::cout << "There actually are this many 'I's in team: " <<
-        fplus::count("I", fplus::split_words(team, false)) << std::endl;
+        fplus::count("I", fplus::split_words(false, team)) << std::endl;
 }
 
 struct Entity
@@ -126,6 +127,10 @@ void Test_example_AllIsCalmAndBright()
 
 struct cat
 {
+    double cuteness() const
+    {
+        return softness_ * temperature_ * roundness_ * fur_amount_ - size_;
+    }
     std::string name_;
     double softness_;
     double temperature_;
@@ -136,18 +141,13 @@ struct cat
 
 void Test_example_TheCutestCat()
 {
-    auto cuteness = [](const cat& c) -> double
-    {
-        return c.softness_ * c.temperature_ * c.roundness_ *
-            c.fur_amount_ - c.size_;
-    };
     std::vector<cat> cats = {
         {"Tigger",   5, 5, 5, 5, 5},
         {"Simba",    2, 9, 9, 2, 7},
         {"Muffin",   9, 4, 2, 8, 6},
         {"Garfield", 6, 5, 7, 9, 5}};
 
-    auto cutest_cat = fplus::maximum_on(cuteness, cats);
+    auto cutest_cat = fplus::maximum_on(std::mem_fn(&cat::cuteness), cats);
 
     std::cout << cutest_cat.name_ <<
         " is happy and sleepy. *purr* *purr* *purr*" << std::endl;
@@ -173,7 +173,7 @@ void Test_example_CollatzSequence()
     typedef std::list<int> Ints;
 
     // [1, 2, 3 ... 29]
-    auto numbers = fplus::generate_range<Ints>(1, 30);
+    auto xs = fplus::numbers<int>(1, 30);
 
     // A function that does [1, 2, 3, 4, 5] -> "[1 => 2 => 3 => 4 => 5]"
     auto show_ints = fplus::bind_1st_of_2(fplus::show_cont_with<Ints>, " => ");
@@ -182,11 +182,62 @@ void Test_example_CollatzSequence()
     auto show_collats_seq = fplus::compose(collatz_seq, show_ints);
 
     // Associate the numbers with the string representation of their sequences.
-    auto collatz_dict = fplus::create_map_with(show_collats_seq, numbers);
+    auto collatz_dict = fplus::create_map_with(show_collats_seq, xs);
 
     // Print some of the sequences.
     std::cout << collatz_dict[13] << std::endl;
     std::cout << collatz_dict[17] << std::endl;
+}
+
+std::string gemstone_count(const std::string& input)
+{
+    using namespace fplus;
+
+    typedef std::set<std::string::value_type> characters;
+
+    const auto lines = split_lines(false, input);
+
+    const auto sets = transform(
+        convert_container<characters, std::string>,
+        lines);
+
+    const auto gem_elements = fold_left_1(
+        set_intersection<characters>, sets);
+
+    return show(size_of_cont(gem_elements));
+}
+
+std::string gemstone_count_fwd_apply(const std::string& input)
+{
+    using namespace fplus;
+    typedef std::set<std::string::value_type> characters;
+    return fwd::apply(
+        input
+        , fwd::split_lines(false)
+        , fwd::transform(convert_container<characters, std::string>)
+        , fwd::fold_left_1(set_intersection<characters>)
+        , fwd::size_of_cont()
+        , fwd::show()
+    );
+}
+
+using namespace fplus;
+typedef std::set<std::string::value_type> characters;
+const auto gemstone_count_fwd_compose = fwd::compose(
+    fwd::split_lines(false),
+    fwd::transform(convert_container<characters, std::string>),
+    fwd::fold_left_1(set_intersection<characters>),
+    fwd::size_of_cont(),
+    fwd::show()
+);
+
+void Test_example_fwd_style()
+{
+    const std::string input =
+        "Lorem ipsum\ndolor sit amet,\nconsectetur,\nadipisci velit";
+    const auto result = gemstone_count(input);
+    const auto result_fwd_apply = gemstone_count_fwd_apply(input);
+    const auto result_fwd_compose = gemstone_count_fwd_compose(input);
 }
 
 int main()
@@ -199,6 +250,7 @@ int main()
     Test_example_AllIsCalmAndBright();
     Test_example_TheCutestCat();
     Test_example_CollatzSequence();
+    Test_example_fwd_style();
     std::cout << "-------" << std::endl;
     std::cout << "Applications OK." << std::endl;
     std::cout << "=======" << std::endl;

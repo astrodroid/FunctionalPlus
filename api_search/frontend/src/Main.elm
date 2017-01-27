@@ -3,7 +3,6 @@ module FPlusApiSearch exposing (..)
 import Database
 import TypeSignature
 import Html exposing (..)
-import Html.App exposing (program)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Markdown
@@ -34,6 +33,8 @@ initModelAndCommands =
 type alias WithParsedSignature a =
     { a
         | parsedSignature : TypeSignature.Signature
+        , signatureFwd : Maybe String
+        , parsedSignatureFwd : Maybe TypeSignature.Signature
     }
 
 
@@ -46,9 +47,7 @@ parseSignatureCrashOnError :
     -> TypeSignature.Signature
 parseSignatureCrashOnError function =
     case
-        (TypeSignature.parseSignature function.signature
-            |> Maybe.map TypeSignature.normalizeSignature
-        )
+        TypeSignature.parseSignature function.signature
     of
         Just sig ->
             sig
@@ -61,14 +60,45 @@ parseSignatureCrashOnError function =
                 |> Debug.crash
 
 
+hasFwdSignature : String -> Bool
+hasFwdSignature documentation =
+    String.contains "fwd bind count" documentation
+
+
+removeFwdBindCount : String -> String
+removeFwdBindCount documentation =
+    documentation
+        |> String.lines
+        |> List.filter (\x -> String.contains "fwd bind count" x |> not)
+        |> String.join "\n"
+
+
 addParsedSignatureToFunction : Database.Function -> Function
 addParsedSignatureToFunction function =
-    { name = function.name
-    , signature = function.signature
-    , parsedSignature = parseSignatureCrashOnError function
-    , documentation = function.documentation
-    , declaration = function.declaration
-    }
+    let
+        parsedSig =
+            parseSignatureCrashOnError function
+
+        parsedSigFwd =
+            if hasFwdSignature function.documentation then
+                parsedSig
+                    |> TypeSignature.curry1
+                    |> Maybe.Just
+            else
+                Maybe.Nothing
+    in
+        { name = function.name
+        , signature = function.signature
+        , parsedSignature = parsedSig |> TypeSignature.normalizeSignature
+        , parsedSignatureFwd =
+            parsedSigFwd
+                |> Maybe.map TypeSignature.normalizeSignature
+        , signatureFwd =
+            parsedSigFwd
+                |> Maybe.map (TypeSignature.showSignature True)
+        , documentation = removeFwdBindCount function.documentation
+        , declaration = function.declaration
+        }
 
 
 functions : List Function
@@ -139,7 +169,7 @@ update action model =
                             |> cleanFunctionSignature
                             |> TypeSignature.parseSignature
                             |> Maybe.map TypeSignature.normalizeSignature
-                            |> \x -> Maybe.andThen x singletonSignatureToNothing
+                            |> \x -> Maybe.andThen singletonSignatureToNothing x
 
                     newQuerySigLower =
                         newQuerySig
@@ -148,10 +178,11 @@ update action model =
                                     >> String.toLower
                                 )
                             |> (\x ->
-                                    Maybe.andThen x
+                                    Maybe.andThen
                                         (TypeSignature.parseSignature
                                             >> Maybe.map TypeSignature.normalizeSignature
                                         )
+                                        x
                                )
 
                     newQuerySigStr =
@@ -386,6 +417,16 @@ adjustQuery query =
             query
 
 
+maybeSigIsArrow : Maybe TypeSignature.Signature -> Bool
+maybeSigIsArrow maybeSig =
+    case maybeSig of
+        Maybe.Just sig ->
+            TypeSignature.sigIsArrow sig
+
+        _ ->
+            False
+
+
 functionRating :
     String
     -> Maybe TypeSignature.Signature
@@ -422,6 +463,11 @@ functionRating queryOrig querySig querySigLower function =
                             queryWord
                     )
                 |> List.sum
+                |> \x ->
+                    if maybeSigIsArrow querySig then
+                        0
+                    else
+                        x
 
         bestTypeRating =
             let
@@ -430,9 +476,20 @@ functionRating queryOrig querySig querySigLower function =
                         Just sig ->
                             let
                                 sigRating =
-                                    typeRating factor
-                                        sig
-                                        function.parsedSignature
+                                    Basics.max
+                                        (typeRating factor
+                                            sig
+                                            function.parsedSignature
+                                        )
+                                        (case function.parsedSignatureFwd of
+                                            Maybe.Just psFwd ->
+                                                typeRating factor
+                                                    sig
+                                                    psFwd
+
+                                            Maybe.Nothing ->
+                                                0
+                                        )
 
                                 name_shortness_factor =
                                     120 / (120 + stringLengthFloat function.name)
@@ -529,6 +586,20 @@ showRatedFunction ( function, rating ) =
                     |> stringToCode "haskell"
                 ]
 
+        functionNameAndSigFwd =
+            case function.signatureFwd of
+                Maybe.Just sigFwd ->
+                    div [ class "functionnameandsig" ]
+                        [ "fwd::"
+                            ++ function.name
+                            ++ " : "
+                            ++ sigFwd
+                            |> stringToCode "haskell"
+                        ]
+
+                Maybe.Nothing ->
+                    div [] []
+
         functionDocumentation =
             div [ class "functiondoc" ]
                 [ function.documentation
@@ -549,6 +620,7 @@ showRatedFunction ( function, rating ) =
     in
         div [ class "function" ]
             [ functionNameAndSig
+            , functionNameAndSigFwd
             , functionDocumentation
             , functionDeclaration
             , functionRating

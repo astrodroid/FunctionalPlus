@@ -6,7 +6,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
 #include <string>
 
@@ -16,6 +16,13 @@ TEST_CASE("replace_test, replace_if")
     std::vector<int> v = { 1, 3, 4, 6, 7 };
     auto result = fplus::replace_if(is_even, 0, v);
     REQUIRE_EQ(result, std::vector<int>({1, 3, 0, 0, 7}));
+}
+
+TEST_CASE("replace_test, replace_elem_at_idx")
+{
+    std::vector<int> v = { 1, 3, 4, 4, 7 };
+    auto result = fplus::replace_elem_at_idx(2, 0, v);
+    REQUIRE_EQ(result, std::vector<int>({1, 3, 0, 4, 7}));
 }
 
 TEST_CASE("replace_test, replace_elems")

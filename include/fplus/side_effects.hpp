@@ -6,10 +6,10 @@
 
 #pragma once
 
-#include "fplus/container_common.hpp"
-#include "fplus/function_traits.hpp"
-#include "fplus/generate.hpp"
-#include "fplus/string_tools.hpp"
+#include <fplus/container_common.hpp>
+#include <fplus/function_traits.hpp>
+#include <fplus/generate.hpp>
+#include <fplus/string_tools.hpp>
 
 #include <chrono>
 #include <fstream>
@@ -24,7 +24,8 @@ namespace fplus
 {
 
 // API search type: sleep_for_n_seconds : Int -> Io ()
-// Returns a function that suspends the calling thread for n seconds.
+// Returns a function that suspends
+// the calling thread for n seconds when executed.
 inline
 std::function<void()> sleep_for_n_seconds(std::size_t seconds)
 {
@@ -35,7 +36,8 @@ std::function<void()> sleep_for_n_seconds(std::size_t seconds)
 }
 
 // API search type: sleep_for_n_milliseconds : Int -> Io ()
-// Returns a function that suspends the calling thread for n milliseconds.
+// Returns a function that suspends
+// the calling thread for n milliseconds when executed.
 inline
 std::function<void()> sleep_for_n_milliseconds(std::size_t milliseconds)
 {
@@ -46,7 +48,8 @@ std::function<void()> sleep_for_n_milliseconds(std::size_t milliseconds)
 }
 
 // API search type: sleep_for_n_microseconds : Int -> Io ()
-// Returns a function that suspends the calling thread for n microseconds.
+// Returns a function that suspends
+// the calling thread for n microseconds when executed.
 inline
 std::function<void()> sleep_for_n_microseconds(std::size_t microseconds)
 {
@@ -57,11 +60,11 @@ std::function<void()> sleep_for_n_microseconds(std::size_t microseconds)
 }
 
 // API search type: execute_serially : [Io ()] -> Io ()
-// Returns a function that executes the given side effects one after another.
+// Returns a function that executes
+// the given side effects one after another when called.
 template <typename Container,
         typename Effect = typename Container::value_type,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<std::vector<Result>()> execute_serially(const Container& effs)
 {
     return [effs]() -> std::vector<Result>
@@ -76,12 +79,11 @@ std::function<std::vector<Result>()> execute_serially(const Container& effs)
 }
 
 // API search type: execute_serially_until_success : [Io Bool] -> Io Bool
-// Returns a function that executes the given side effects one after another
-// until one of it returns true.
+// Returns a function that (when called) executes
+// the given side effects one after another until one of it returns true.
 template <typename Container,
         typename Effect = typename Container::value_type,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<bool()> execute_serially_until_success(const Container& effs)
 {
     static_assert(std::is_convertible<Result, bool>::value,
@@ -101,7 +103,7 @@ std::function<bool()> execute_serially_until_success(const Container& effs)
 
 // API search type: execute_and_return_fixed_value : (a, [Io b]) -> Io a
 // Returns a function that executes the given side effect
-// and returns a fixed value.
+// and returns a fixed value when called.
 template <typename Result, typename Effect>
 std::function<Result()> execute_and_return_fixed_value(
         Result result,
@@ -116,8 +118,7 @@ std::function<Result()> execute_and_return_fixed_value(
 
 // Converts an arbitrary callable effect to an std::function.
 template <typename Effect,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<Result()> effect_to_std_function(Effect eff)
 {
     return [eff]() -> Result
@@ -127,11 +128,11 @@ std::function<Result()> effect_to_std_function(Effect eff)
 }
 
 // API search type: execute_max_n_times_until_success : (Int, Io (), Int) -> Io Bool
-// Returns a function that executes a side effect until it succeds once
-// or the maximum number of attempts with an optional pause in between.
+// Returns a function that (when called) executes a side effect
+// until it succeds once or the maximum number
+// of attempts with an optional pause in between.
 template <typename Effect,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<bool()> execute_max_n_times_until_success(
         std::size_t n,
         const Effect& eff,
@@ -153,12 +154,11 @@ std::function<bool()> execute_max_n_times_until_success(
 }
 
 // API search type: execute_serially_until_failure : [Io Bool] -> Io Bool
-// Returns a function that executes the given side effects one after another
-// until one of them returns false.
+// Returns a function that (when called) executes the given side effects
+// one after another until one of them returns false.
 template <typename Container,
         typename Effect = typename Container::value_type,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<bool()> execute_serially_until_failure(const Container& effs)
 {
     static_assert(std::is_convertible<Result, bool>::value,
@@ -177,12 +177,11 @@ std::function<bool()> execute_serially_until_failure(const Container& effs)
 }
 
 // API search type: execute_parallelly : [Io a] -> Io [a]
-// Returns a function that executes the given side effects in parallel
-// and returns the collected results.
+// Returns a function that (when called) executes the given side effects
+// in parallel and returns the collected results.
 template <typename Container,
         typename Effect = typename Container::value_type,
-        typename Result = typename utils::function_traits<
-            Effect>::result_type>
+        typename Result = typename std::result_of<Effect()>::type>
 std::function<std::vector<Result>()> execute_parallelly(const Container& effs)
 {
     return [effs]() -> std::vector<Result>
@@ -204,8 +203,8 @@ std::function<std::vector<Result>()> execute_parallelly(const Container& effs)
 }
 
 // API search type: execute_fire_and_forget : Io a -> Io a
-// Returns a function that executes the given side effect in a new thread
-// and return immediately.
+// Returns a function that (when called) executes the given side effect
+// in a new thread and returns immediately.
 template <typename Effect>
 std::function<void()> execute_fire_and_forget(Effect eff)
 {
@@ -216,24 +215,8 @@ std::function<void()> execute_fire_and_forget(Effect eff)
     };
 }
 
-// API search type: read_text_file : String -> Io String
-// Returns a function that reads the content of a text file.
-inline
-std::function<std::string()> read_text_file(const std::string& filename)
-{
-    return [filename]() -> std::string
-    {
-        std::ifstream input(filename);
-        if (!input.good())
-            return {};
-        return std::string(
-                std::istreambuf_iterator<std::string::value_type>(input),
-                std::istreambuf_iterator<std::string::value_type>());
-    };
-}
-
-// API search type: read_text_file : String -> Io (Maybe String)
-// Returns a function that reads the content of a text file.
+// API search type: read_text_file_maybe : String -> Io (Maybe String)
+// Returns a function that reads the content of a text file when called.
 inline
 std::function<maybe<std::string>()> read_text_file_maybe(
     const std::string& filename)
@@ -249,13 +232,28 @@ std::function<maybe<std::string>()> read_text_file_maybe(
     };
 }
 
-// API search type: read_binary_file : String -> Io [Int]
-// Returns a function that reads the content of a binary file.
+// API search type: read_text_file : String -> Io String
+// Returns a function that reads the content of a text file when called.
+// This function then returns an empty string if the file could not be read.
 inline
-std::function<std::vector<std::uint8_t>()> read_binary_file(
+std::function<std::string()> read_text_file(const std::string& filename)
+{
+    return [filename]() -> std::string
+    {
+        return just_with_default(
+            std::string(),
+
+            read_text_file_maybe(filename)());
+    };
+}
+
+// API search type: read_binary_file : String -> Io (Maybe [Int])
+// Returns a function that reads the content of a binary file when executed.
+inline
+std::function<maybe<std::vector<std::uint8_t>>()> read_binary_file_maybe(
     const std::string& filename)
 {
-    return [filename]() -> std::vector<std::uint8_t>
+    return [filename]() -> maybe<std::vector<std::uint8_t>>
     {
         std::ifstream file(filename, std::ios::binary);
         if (!file.good())
@@ -273,21 +271,56 @@ std::function<std::vector<std::uint8_t>()> read_binary_file(
     };
 }
 
-// API search type: read_text_file_lines : (String, Bool) -> Io [String]
-// Returns a function that reads the content of a text file
+// API search type: read_binary_file : String -> Io [Int]
+// Returns a function that reads the content of a binary file when executed.
+// This function then returns an empty vector if the file could not be read.
+inline
+std::function<std::vector<std::uint8_t>()> read_binary_file(
+    const std::string& filename)
+{
+    return [filename]() -> std::vector<std::uint8_t>
+    {
+        return just_with_default(
+            std::vector<std::uint8_t>(),
+            read_binary_file_maybe(filename)());
+    };
+}
+
+// API search type: read_text_file_lines : (String, Bool) -> Io (Maybe [String])
+// Returns a function that (when called) reads the content of a text file
 // and returns it line by line.
 inline
+std::function<maybe<std::vector<std::string>>()> read_text_file_lines_maybe(
+        bool allow_empty, const std::string& filename)
+{
+    return [filename, allow_empty]() -> maybe<std::vector<std::string>>
+    {
+        const auto maybe_content = read_text_file_maybe(filename)();
+        if (maybe_content.is_nothing())
+            return {};
+        else
+            return split_lines(allow_empty, maybe_content.unsafe_get_just());
+    };
+}
+
+// API search type: read_text_file_lines : (String, Bool) -> Io [String]
+// Returns a function that (when called) reads the content of a text file
+// and returns it line by line.
+// This function then returns an empty vector if the file could not be read.
+inline
 std::function<std::vector<std::string>()> read_text_file_lines(
-        const std::string& filename, bool allow_empty)
+        bool allow_empty, const std::string& filename)
 {
     return [filename, allow_empty]() -> std::vector<std::string>
     {
-        return split_lines(read_text_file(filename)(), allow_empty);
+        return just_with_default(
+            std::vector<std::string>(),
+            read_text_file_lines_maybe(allow_empty, filename)());
     };
 }
 
 // API search type: write_text_file : (String, String) -> Io Bool
-// Returns a function that writes content into a text file,
+// Returns a function that (when called) writes content into a text file,
 // replacing it if it already exists.
 inline
 std::function<bool()> write_text_file(const std::string& filename,
@@ -302,7 +335,7 @@ std::function<bool()> write_text_file(const std::string& filename,
 }
 
 // API search type: write_binary_file : (String, [Int]) -> Io Bool
-// Returns a function that writes content into a binary file,
+// Returns a function that (when called) writes content into a binary file,
 // replacing it if it already exists.
 inline
 std::function<bool()> write_binary_file(const std::string& filename,
@@ -318,11 +351,12 @@ std::function<bool()> write_binary_file(const std::string& filename,
 }
 
 // API search type: write_text_file_lines : (String, [String], Bool) -> Io Bool
-// Returns a function that writes lines into a text file,
+// Returns a function that (when called) writes lines into a text file,
 // replacing it if it already exists.
 inline
-std::function<bool()> write_text_file_lines(const std::string& filename,
-        const std::vector<std::string>& lines, bool trailing_newline = true)
+std::function<bool()> write_text_file_lines(bool trailing_newline,
+        const std::string& filename,
+        const std::vector<std::string>& lines)
 {
     std::string content = join(std::string("\n"), lines);
     if (trailing_newline)
@@ -332,12 +366,23 @@ std::function<bool()> write_text_file_lines(const std::string& filename,
     return write_text_file(filename, content);
 }
 
+// API search type: execute_effect : Io a -> a
+// Simply run a side effect (call a function without parameters)
+// and returns the result.
+// Can be useful for chaining.
+template <typename F,
+    typename FOut = typename std::result_of<F()>::type>
+FOut execute_effect(const F f)
+{
+    return f();
+}
+
 // API search type: interact : (String -> String) -> Io ()
 // Takes a function F of type (String -> String)
 // and returns a function that
 // reads the entire input from standard input,
 // passes it through the given function,
-// and its the output to standard output.
+// and writes the result to standard output.
 template <typename F>
 std::function<void()> interact(F f)
 {

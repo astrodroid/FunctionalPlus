@@ -6,15 +6,16 @@
 
 #pragma once
 
-#include "fplus/container_common.hpp"
-#include "fplus/maybe.hpp"
+#include <fplus/container_common.hpp>
+#include <fplus/maybe.hpp>
 
 namespace fplus
 {
 
 // API search type: elem_at_float_idx : (Float, [a]) -> a
+// fwd bind count: 1
 // Interpolates linearly between elements.
-// xs must not be empty.
+// xs must be non-empty.
 template <typename Container,
     typename T = typename Container::value_type>
 T elem_at_float_idx(double idx, const Container& xs)
@@ -24,8 +25,8 @@ T elem_at_float_idx(double idx, const Container& xs)
     {
         return xs.front();
     }
-    std::size_t idx_floor = floor<std::size_t>(idx);
-    std::size_t idx_ceil = ceil<std::size_t>(idx);
+    std::size_t idx_floor = floor<double, std::size_t>(idx);
+    std::size_t idx_ceil = ceil<double, std::size_t>(idx);
     if (idx_ceil >= size_of_cont(xs))
     {
         return xs.back();

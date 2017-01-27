@@ -6,8 +6,18 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "doctest.h"
-#include "fplus/fplus.hpp"
+#include <fplus/fplus.hpp>
 #include <vector>
+
+TEST_CASE("side_effects_test, execute")
+{
+    using namespace fplus;
+    std::vector<int> buffer;
+    auto push_one_return_true = [&]() -> bool { buffer.push_back(1); return true; };
+    execute_effect(push_one_return_true);
+    REQUIRE_EQ(execute_effect(push_one_return_true), true);
+    REQUIRE_EQ(buffer, std::vector<int>({1,1}));
+}
 
 TEST_CASE("side_effects_test, execute_serially")
 {
